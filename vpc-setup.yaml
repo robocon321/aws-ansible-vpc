@@ -106,14 +106,14 @@
           gateway_id: "{{igw_out.gateway_id}}"
     register: pubRT_out
 
-  - name: Create new nat gateway and allocate new EIP if a  nat gateway does not exist
-    ec2_vpc_nat_gateway:
-      state: "{{state}}"
-      subnet_id: "{{pubsub1_out.subnet.id}}"
-      wait: yes
-      region: "{{region}}"
-      if_exist_do_not_create: true
-    register: NATGW_out
+  # - name: Create new nat gateway and allocate new EIP if a  nat gateway does not exist
+  #   ec2_vpc_nat_gateway:
+  #     state: "{{state}}"
+  #     subnet_id: "{{pubsub1_out.subnet.id}}"
+  #     wait: yes
+  #     region: "{{region}}"
+  #     if_exist_do_not_create: true
+  #   register: NATGW_out
 
   - name: Set up private subnet route table
     ec2_vpc_route_table:
@@ -125,8 +125,41 @@
         - "{{prisub1_out.subnet.id}}"
         - "{{prisub2_out.subnet.id}}"
         - "{{prisub3_out.subnet.id}}"
-      routes:
-        - dest: 0.0.0.0/0
-          gateway_id: "{{igw_out.gateway_id}}"
+      # routes:
+      #   - dest: 0.0.0.0/0
+      #     gateway_id: "{{NATGW_out.gateway_id}}"
     register: priRT_out
 
+  - debug:
+      var: "{{item}}"
+    loop:
+      - vpcout.vpc.id
+      - pubsub1_out.subnet.id
+      - pubsub2_out.subnet.id
+      - pubsub3_out.subnet.id
+      - prisub1_out.subnet.id
+      - prisub2_out.subnet.id
+      - prisub3_out.subnet.id
+      - igw_out.gateway_id
+      - pubRT_out.route_table.id
+      # - NATGW_out.gateway_id
+      - priRT_out.route_table.id
+
+  - set_fact:
+      vpcid: "{{vpcout.vpc.id}}"
+      pubsub1id: "{{pubsub1_out.subnet.id}}"
+      pubsub2id: "{{pubsub2_out.subnet.id}}"
+      pubsubid: "{{pubsub3_out.subnet.id}}"
+      prisub1id: "{{prisub1_out.subnet.id}}"
+      prisub2id: "{{prisub2_out.subnet.id}}"
+      prisub3id: "{{prisub3_out.subnet.id}}"
+      igwid: "{{igw_out.gateway_id}}"
+      pubRTid: "{{pubRT_out.route_table.id}}"
+    # - NATGW_out.gateway_id
+      priRTid: "{{priRT_out.route_table.id}}"
+      cacheable: yes
+  
+  - name: Create variables file for vpc output
+    copy:
+      content: "vpcid: {{vpcout.vpc.id}}\npubsub1id: {{pubsub1_out.subnet.id}}\npubsub2id: {{pubsub2_out.subnet.id}}\npubsubid: {{pubsub3_out.subnet.id}}\nprisub1id: {{prisub1_out.subnet.id}}\nprisub2id: {{prisub2_out.subnet.id}}\nprisub3id: {{prisub3_out.subnet.id}}\nigwid: {{igw_out.gateway_id}}\npubRTid: {{pubRT_out.route_table.id}}\npriRTid: {{priRT_out.route_table.id}}"
+      dest: vars/output_vars
