@@ -52,7 +52,7 @@
             from_port: 22
             to_port: 22
             group_id: "{{bastionSGid}}"
-      register: vproStackSG_out rules
+      register: vproStackSG_out
     
     - name: Update Security Group with its own sg id
       ec2_group:
@@ -169,3 +169,71 @@
         group_id: "{{vproStackSG_out.group_id}}"
         vpc_subnet_id: "{{prisub1id}}"
       register: db01_out
+
+    - local_action:
+      module: ec2_elb_lb
+      name: "vprofile-elb"
+      region: "{{region}}"
+      state: present
+      instance_ids:
+        - "{{web01_out.tagged_instances[0].id}}"
+      purge_instance_id: true
+      security_group_id: "{{vproELBSG_out.group_id}}"
+      subnets:
+        - "{{pubsub1id}}"
+        - "{{pubsub2id}}"
+        - "{{pubsub3id}}"
+      listeners:
+        - protocol: http
+          load_balancer_port: 80
+          instance_port: 80
+
+    - name: Insert/Update hosts IP & Nmae in file provision-stack/group_vars/hostsip
+      blockinfile:
+        path: provision-stack/group_vars/hostsip
+        block: |
+          web01_ip: {{web01_out.tagged_instances[0].private_id}}
+          app01_ip: {{app01_out.tagged_instances[0].private_id}}
+          rmq01_ip: {{rmq01_out.tagged_instances[0].private_id}}
+          mc01_ip: {{mc01_out.tagged_instances[0].private_id}}
+          db01_ip: {{db01_out.tagged_instances[0].private_id}}
+
+    - name: Copy login key to provision_stack directory
+      copy:
+        src: loginkey_pro.pem
+        dest: provision-stack/loginkey_vpro.pem
+        mode: 0400
+      
+    - name: Insert/Update Inventory file provision-stack/inventory-vpro
+      blockinfile:
+      path: provision-stack/inventory-vpro
+      block: |
+          web01 ansible_host={{web01_out.tagged_instances[0].private_id}}
+          app01 ansible_host={{app01_out.tagged_instances[0].private_id}}
+          rmq01 ansible_host={{rmq01_out.tagged_instances[0].private_id}}
+          mc01 ansible_host={{mc01_out.tagged_instances[0].private_id}}
+          db01 ansible_host={{db01_out.tagged_instances[0].private_id}}
+          cntl ansible_host=127.0.0.1 ansible_connection=local
+
+          [websrvgrp]
+          web01
+
+          [rmqsrcgrp]
+          rmq01
+
+          [rmqsrcgrp]
+          rmq01
+
+          [mcsrcgrp]
+          mc01
+
+          [dbsrcgrp]
+          db01
+
+          [control]
+          cntl
+
+          [stack_inst:vars]
+          ansible_user=ubuntu
+          ansible_ssh_private_key_file=loginkey_vpro.pem
+          #ansible_python_interpreter=/usr/bin/python3
